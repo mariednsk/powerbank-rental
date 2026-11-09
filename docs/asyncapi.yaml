@@ -1,0 +1,1184 @@
+# AsyncAPI 3.0.0 — сводные события вашей системы, брокер Kafka.
+asyncapi: 3.0.0
+id: urn:powerbank-rental:integration-contracts:v1
+info:
+  title: Powerbank Rental — Kafka events
+  version: 1.0.0
+  description: 'Сводный учебный каталог событий и направлений обмена. Каждая операция помечена x-service: send
+    означает публикацию ИМЕННО этим сервисом, receive — потребление ИМЕННО этим сервисом. Во второй части его
+    можно разнести по отдельным AsyncAPI-документам каждого сервиса.'
+defaultContentType: application/json
+servers:
+  localKafka:
+    host: localhost:9092
+    protocol: kafka
+    description: Учебный локальный брокер; реальная адресация задаётся через окружение
+channels:
+  rentalCreated:
+    address: powerbank.rental.rentalCreated.v1
+    description: У аренды появился постоянный идентификатор.
+    messages:
+      RentalCreated:
+        $ref: '#/components/messages/RentalCreated'
+  powerbankReserved:
+    address: powerbank.inventory.powerbankReserved.v1
+    description: Устройство атомарно зарезервировано.
+    messages:
+      PowerbankReserved:
+        $ref: '#/components/messages/PowerbankReserved'
+  reservationRejected:
+    address: powerbank.inventory.reservationRejected.v1
+    description: Свободного исправного устройства нет.
+    messages:
+      ReservationRejected:
+        $ref: '#/components/messages/ReservationRejected'
+  reservationReleased:
+    address: powerbank.inventory.reservationReleased.v1
+    description: Резерв безопасно снят после подтверждённого отсутствия выдачи.
+    messages:
+      ReservationReleased:
+        $ref: '#/components/messages/ReservationReleased'
+  paymentAuthorized:
+    address: powerbank.payment.paymentAuthorized.v1
+    description: Депозит подтверждён провайдером.
+    messages:
+      PaymentAuthorized:
+        $ref: '#/components/messages/PaymentAuthorized'
+  paymentAuthorizationFailed:
+    address: powerbank.payment.paymentAuthorizationFailed.v1
+    description: Провайдер окончательно отказал в блокировке.
+    messages:
+      PaymentAuthorizationFailed:
+        $ref: '#/components/messages/PaymentAuthorizationFailed'
+  paymentAuthorizationVoided:
+    address: powerbank.payment.paymentAuthorizationVoided.v1
+    description: Депозит разблокирован без списания.
+    messages:
+      PaymentAuthorizationVoided:
+        $ref: '#/components/messages/PaymentAuthorizationVoided'
+  paymentCaptured:
+    address: powerbank.payment.paymentCaptured.v1
+    description: Окончательное списание подтверждено.
+    messages:
+      PaymentCaptured:
+        $ref: '#/components/messages/PaymentCaptured'
+  paymentCaptureFailed:
+    address: powerbank.payment.paymentCaptureFailed.v1
+    description: Окончательное списание отклонено.
+    messages:
+      PaymentCaptureFailed:
+        $ref: '#/components/messages/PaymentCaptureFailed'
+  powerbankReleased:
+    address: powerbank.station.powerbankReleased.v1
+    description: Физическая станция достоверно подтвердила выдачу.
+    messages:
+      PowerbankReleased:
+        $ref: '#/components/messages/PowerbankReleased'
+  powerbankReleaseFailed:
+    address: powerbank.station.powerbankReleaseFailed.v1
+    description: Станция достоверно подтвердила, что устройство НЕ выдано.
+    messages:
+      PowerbankReleaseFailed:
+        $ref: '#/components/messages/PowerbankReleaseFailed'
+  powerbankReleaseUncertain:
+    address: powerbank.station.powerbankReleaseUncertain.v1
+    description: Исход выдачи неизвестен — нельзя автоматически отменить блокировку/резерв.
+    messages:
+      PowerbankReleaseUncertain:
+        $ref: '#/components/messages/PowerbankReleaseUncertain'
+  powerbankReturned:
+    address: powerbank.station.powerbankReturned.v1
+    description: Станция достоверно приняла возвращённое устройство.
+    messages:
+      PowerbankReturned:
+        $ref: '#/components/messages/PowerbankReturned'
+  rentalStarted:
+    address: powerbank.rental.rentalStarted.v1
+    description: Аренда перешла в ACTIVE после физической выдачи.
+    messages:
+      RentalStarted:
+        $ref: '#/components/messages/RentalStarted'
+  rentalCompleted:
+    address: powerbank.rental.rentalCompleted.v1
+    description: Возврат и единственное списание подтверждены.
+    messages:
+      RentalCompleted:
+        $ref: '#/components/messages/RentalCompleted'
+  rentalCancelled:
+    address: powerbank.rental.rentalCancelled.v1
+    description: Резерв освобождён и блокировка снята, выдачи не было.
+    messages:
+      RentalCancelled:
+        $ref: '#/components/messages/RentalCancelled'
+operations:
+  rentalSendsRentalCreated:
+    action: send
+    channel:
+      $ref: '#/channels/rentalCreated'
+    messages:
+    - $ref: '#/channels/rentalCreated/messages/RentalCreated'
+    x-service: Rental Service
+  notificationReceivesRentalCreated:
+    action: receive
+    channel:
+      $ref: '#/channels/rentalCreated'
+    messages:
+    - $ref: '#/channels/rentalCreated/messages/RentalCreated'
+    x-service: Notification Service
+  inventorySendsPowerbankReserved:
+    action: send
+    channel:
+      $ref: '#/channels/powerbankReserved'
+    messages:
+    - $ref: '#/channels/powerbankReserved/messages/PowerbankReserved'
+    x-service: Inventory Service
+  rentalReceivesPowerbankReserved:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReserved'
+    messages:
+    - $ref: '#/channels/powerbankReserved/messages/PowerbankReserved'
+    x-service: Rental Service
+  inventorySendsReservationRejected:
+    action: send
+    channel:
+      $ref: '#/channels/reservationRejected'
+    messages:
+    - $ref: '#/channels/reservationRejected/messages/ReservationRejected'
+    x-service: Inventory Service
+  rentalReceivesReservationRejected:
+    action: receive
+    channel:
+      $ref: '#/channels/reservationRejected'
+    messages:
+    - $ref: '#/channels/reservationRejected/messages/ReservationRejected'
+    x-service: Rental Service
+  inventorySendsReservationReleased:
+    action: send
+    channel:
+      $ref: '#/channels/reservationReleased'
+    messages:
+    - $ref: '#/channels/reservationReleased/messages/ReservationReleased'
+    x-service: Inventory Service
+  rentalReceivesReservationReleased:
+    action: receive
+    channel:
+      $ref: '#/channels/reservationReleased'
+    messages:
+    - $ref: '#/channels/reservationReleased/messages/ReservationReleased'
+    x-service: Rental Service
+  paymentSendsPaymentAuthorized:
+    action: send
+    channel:
+      $ref: '#/channels/paymentAuthorized'
+    messages:
+    - $ref: '#/channels/paymentAuthorized/messages/PaymentAuthorized'
+    x-service: Payment Service
+  rentalReceivesPaymentAuthorized:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentAuthorized'
+    messages:
+    - $ref: '#/channels/paymentAuthorized/messages/PaymentAuthorized'
+    x-service: Rental Service
+  notificationReceivesPaymentAuthorized:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentAuthorized'
+    messages:
+    - $ref: '#/channels/paymentAuthorized/messages/PaymentAuthorized'
+    x-service: Notification Service
+  paymentSendsPaymentAuthorizationFailed:
+    action: send
+    channel:
+      $ref: '#/channels/paymentAuthorizationFailed'
+    messages:
+    - $ref: '#/channels/paymentAuthorizationFailed/messages/PaymentAuthorizationFailed'
+    x-service: Payment Service
+  rentalReceivesPaymentAuthorizationFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentAuthorizationFailed'
+    messages:
+    - $ref: '#/channels/paymentAuthorizationFailed/messages/PaymentAuthorizationFailed'
+    x-service: Rental Service
+  paymentSendsPaymentAuthorizationVoided:
+    action: send
+    channel:
+      $ref: '#/channels/paymentAuthorizationVoided'
+    messages:
+    - $ref: '#/channels/paymentAuthorizationVoided/messages/PaymentAuthorizationVoided'
+    x-service: Payment Service
+  rentalReceivesPaymentAuthorizationVoided:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentAuthorizationVoided'
+    messages:
+    - $ref: '#/channels/paymentAuthorizationVoided/messages/PaymentAuthorizationVoided'
+    x-service: Rental Service
+  paymentSendsPaymentCaptured:
+    action: send
+    channel:
+      $ref: '#/channels/paymentCaptured'
+    messages:
+    - $ref: '#/channels/paymentCaptured/messages/PaymentCaptured'
+    x-service: Payment Service
+  rentalReceivesPaymentCaptured:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentCaptured'
+    messages:
+    - $ref: '#/channels/paymentCaptured/messages/PaymentCaptured'
+    x-service: Rental Service
+  notificationReceivesPaymentCaptured:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentCaptured'
+    messages:
+    - $ref: '#/channels/paymentCaptured/messages/PaymentCaptured'
+    x-service: Notification Service
+  paymentSendsPaymentCaptureFailed:
+    action: send
+    channel:
+      $ref: '#/channels/paymentCaptureFailed'
+    messages:
+    - $ref: '#/channels/paymentCaptureFailed/messages/PaymentCaptureFailed'
+    x-service: Payment Service
+  rentalReceivesPaymentCaptureFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentCaptureFailed'
+    messages:
+    - $ref: '#/channels/paymentCaptureFailed/messages/PaymentCaptureFailed'
+    x-service: Rental Service
+  stationSendsPowerbankReleased:
+    action: send
+    channel:
+      $ref: '#/channels/powerbankReleased'
+    messages:
+    - $ref: '#/channels/powerbankReleased/messages/PowerbankReleased'
+    x-service: Station Gateway
+  rentalReceivesPowerbankReleased:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReleased'
+    messages:
+    - $ref: '#/channels/powerbankReleased/messages/PowerbankReleased'
+    x-service: Rental Service
+  inventoryReceivesPowerbankReleased:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReleased'
+    messages:
+    - $ref: '#/channels/powerbankReleased/messages/PowerbankReleased'
+    x-service: Inventory Service
+  stationSendsPowerbankReleaseFailed:
+    action: send
+    channel:
+      $ref: '#/channels/powerbankReleaseFailed'
+    messages:
+    - $ref: '#/channels/powerbankReleaseFailed/messages/PowerbankReleaseFailed'
+    x-service: Station Gateway
+  rentalReceivesPowerbankReleaseFailed:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReleaseFailed'
+    messages:
+    - $ref: '#/channels/powerbankReleaseFailed/messages/PowerbankReleaseFailed'
+    x-service: Rental Service
+  stationSendsPowerbankReleaseUncertain:
+    action: send
+    channel:
+      $ref: '#/channels/powerbankReleaseUncertain'
+    messages:
+    - $ref: '#/channels/powerbankReleaseUncertain/messages/PowerbankReleaseUncertain'
+    x-service: Station Gateway
+  rentalReceivesPowerbankReleaseUncertain:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReleaseUncertain'
+    messages:
+    - $ref: '#/channels/powerbankReleaseUncertain/messages/PowerbankReleaseUncertain'
+    x-service: Rental Service
+  stationSendsPowerbankReturned:
+    action: send
+    channel:
+      $ref: '#/channels/powerbankReturned'
+    messages:
+    - $ref: '#/channels/powerbankReturned/messages/PowerbankReturned'
+    x-service: Station Gateway
+  rentalReceivesPowerbankReturned:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReturned'
+    messages:
+    - $ref: '#/channels/powerbankReturned/messages/PowerbankReturned'
+    x-service: Rental Service
+  inventoryReceivesPowerbankReturned:
+    action: receive
+    channel:
+      $ref: '#/channels/powerbankReturned'
+    messages:
+    - $ref: '#/channels/powerbankReturned/messages/PowerbankReturned'
+    x-service: Inventory Service
+  rentalSendsRentalStarted:
+    action: send
+    channel:
+      $ref: '#/channels/rentalStarted'
+    messages:
+    - $ref: '#/channels/rentalStarted/messages/RentalStarted'
+    x-service: Rental Service
+  notificationReceivesRentalStarted:
+    action: receive
+    channel:
+      $ref: '#/channels/rentalStarted'
+    messages:
+    - $ref: '#/channels/rentalStarted/messages/RentalStarted'
+    x-service: Notification Service
+  rentalSendsRentalCompleted:
+    action: send
+    channel:
+      $ref: '#/channels/rentalCompleted'
+    messages:
+    - $ref: '#/channels/rentalCompleted/messages/RentalCompleted'
+    x-service: Rental Service
+  notificationReceivesRentalCompleted:
+    action: receive
+    channel:
+      $ref: '#/channels/rentalCompleted'
+    messages:
+    - $ref: '#/channels/rentalCompleted/messages/RentalCompleted'
+    x-service: Notification Service
+  rentalSendsRentalCancelled:
+    action: send
+    channel:
+      $ref: '#/channels/rentalCancelled'
+    messages:
+    - $ref: '#/channels/rentalCancelled/messages/RentalCancelled'
+    x-service: Rental Service
+  notificationReceivesRentalCancelled:
+    action: receive
+    channel:
+      $ref: '#/channels/rentalCancelled'
+    messages:
+    - $ref: '#/channels/rentalCancelled/messages/RentalCancelled'
+    x-service: Notification Service
+components:
+  messages:
+    RentalCreated:
+      name: RentalCreated
+      title: RentalCreated
+      summary: У аренды появился постоянный идентификатор.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - RentalCreated
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Rental Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              userId:
+                type: string
+              stationId:
+                type: string
+            required:
+            - userId
+            - stationId
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PowerbankReserved:
+      name: PowerbankReserved
+      title: PowerbankReserved
+      summary: Устройство атомарно зарезервировано.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PowerbankReserved
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Inventory Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              reservationId:
+                type: string
+              stationId:
+                type: string
+              powerbankId:
+                type: string
+            required:
+            - reservationId
+            - stationId
+            - powerbankId
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    ReservationRejected:
+      name: ReservationRejected
+      title: ReservationRejected
+      summary: Свободного исправного устройства нет.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - ReservationRejected
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Inventory Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              stationId:
+                type: string
+              reason:
+                type: string
+            required:
+            - stationId
+            - reason
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    ReservationReleased:
+      name: ReservationReleased
+      title: ReservationReleased
+      summary: Резерв безопасно снят после подтверждённого отсутствия выдачи.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - ReservationReleased
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Inventory Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              reservationId:
+                type: string
+              powerbankId:
+                type: string
+            required:
+            - reservationId
+            - powerbankId
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PaymentAuthorized:
+      name: PaymentAuthorized
+      title: PaymentAuthorized
+      summary: Депозит подтверждён провайдером.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PaymentAuthorized
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Payment Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              paymentId:
+                type: string
+              amountMinor:
+                type: integer
+                minimum: 0
+            required:
+            - paymentId
+            - amountMinor
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PaymentAuthorizationFailed:
+      name: PaymentAuthorizationFailed
+      title: PaymentAuthorizationFailed
+      summary: Провайдер окончательно отказал в блокировке.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PaymentAuthorizationFailed
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Payment Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              paymentId:
+                type: string
+              reason:
+                type: string
+            required:
+            - paymentId
+            - reason
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PaymentAuthorizationVoided:
+      name: PaymentAuthorizationVoided
+      title: PaymentAuthorizationVoided
+      summary: Депозит разблокирован без списания.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PaymentAuthorizationVoided
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Payment Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              paymentId:
+                type: string
+            required:
+            - paymentId
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PaymentCaptured:
+      name: PaymentCaptured
+      title: PaymentCaptured
+      summary: Окончательное списание подтверждено.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PaymentCaptured
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Payment Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              paymentId:
+                type: string
+              amountMinor:
+                type: integer
+                minimum: 0
+            required:
+            - paymentId
+            - amountMinor
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PaymentCaptureFailed:
+      name: PaymentCaptureFailed
+      title: PaymentCaptureFailed
+      summary: Окончательное списание отклонено.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PaymentCaptureFailed
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Payment Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              paymentId:
+                type: string
+              reason:
+                type: string
+            required:
+            - paymentId
+            - reason
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PowerbankReleased:
+      name: PowerbankReleased
+      title: PowerbankReleased
+      summary: Физическая станция достоверно подтвердила выдачу.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PowerbankReleased
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Station Gateway
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              commandId:
+                type: string
+              stationId:
+                type: string
+              powerbankId:
+                type: string
+              releasedAt:
+                type: string
+                format: date-time
+            required:
+            - commandId
+            - stationId
+            - powerbankId
+            - releasedAt
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PowerbankReleaseFailed:
+      name: PowerbankReleaseFailed
+      title: PowerbankReleaseFailed
+      summary: Станция достоверно подтвердила, что устройство НЕ выдано.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PowerbankReleaseFailed
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Station Gateway
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              commandId:
+                type: string
+              stationId:
+                type: string
+              powerbankId:
+                type: string
+              reason:
+                type: string
+            required:
+            - commandId
+            - stationId
+            - powerbankId
+            - reason
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PowerbankReleaseUncertain:
+      name: PowerbankReleaseUncertain
+      title: PowerbankReleaseUncertain
+      summary: Исход выдачи неизвестен — нельзя автоматически отменить блокировку/резерв.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PowerbankReleaseUncertain
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Station Gateway
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              commandId:
+                type: string
+              stationId:
+                type: string
+              powerbankId:
+                type: string
+            required:
+            - commandId
+            - stationId
+            - powerbankId
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    PowerbankReturned:
+      name: PowerbankReturned
+      title: PowerbankReturned
+      summary: Станция достоверно приняла возвращённое устройство.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - PowerbankReturned
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Station Gateway
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              stationId:
+                type: string
+              powerbankId:
+                type: string
+              returnedAt:
+                type: string
+                format: date-time
+              serviceable:
+                type: boolean
+            required:
+            - stationId
+            - powerbankId
+            - returnedAt
+            - serviceable
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    RentalStarted:
+      name: RentalStarted
+      title: RentalStarted
+      summary: Аренда перешла в ACTIVE после физической выдачи.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - RentalStarted
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Rental Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              userId:
+                type: string
+              powerbankId:
+                type: string
+              startedAt:
+                type: string
+                format: date-time
+            required:
+            - userId
+            - powerbankId
+            - startedAt
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    RentalCompleted:
+      name: RentalCompleted
+      title: RentalCompleted
+      summary: Возврат и единственное списание подтверждены.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - RentalCompleted
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Rental Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              userId:
+                type: string
+              paymentId:
+                type: string
+              chargeAmountMinor:
+                type: integer
+                minimum: 0
+            required:
+            - userId
+            - paymentId
+            - chargeAmountMinor
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data
+    RentalCancelled:
+      name: RentalCancelled
+      title: RentalCancelled
+      summary: Резерв освобождён и блокировка снята, выдачи не было.
+      contentType: application/json
+      payload:
+        type: object
+        additionalProperties: false
+        properties:
+          eventId:
+            type: string
+            description: Постоянный ID публикации; повторы сохраняют его
+          eventType:
+            type: string
+            enum:
+            - RentalCancelled
+          eventVersion:
+            type: integer
+            const: 1
+          rentalId:
+            type: string
+            description: Корреляционный ID процесса
+          occurredAt:
+            type: string
+            format: date-time
+            description: Момент создания события у владельца
+          producer:
+            type: string
+            enum:
+            - Rental Service
+          data:
+            type: object
+            additionalProperties: false
+            properties:
+              userId:
+                type: string
+              reason:
+                type: string
+            required:
+            - userId
+            - reason
+        required:
+        - eventId
+        - eventType
+        - eventVersion
+        - rentalId
+        - occurredAt
+        - producer
+        - data

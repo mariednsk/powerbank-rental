@@ -1,0 +1,1036 @@
+# OpenAPI 3.1.1 — первая часть курса: проектирование, не сервер.
+openapi: 3.1.1
+info:
+  title: Powerbank Rental — REST contracts
+  version: 1.0.0
+  description: Учебная спецификация синхронного API шести микросервисов. Маршруты /api/* доступны клиенту через
+    API Gateway; /internal/* — только сервисам; /hardware/* — имитатору физической станции. Контракты проектные,
+    реальный сервер в первой части не реализован.
+servers:
+- url: http://localhost:8080
+  description: Предполагаемый адрес учебного API Gateway; адреса внутренних сервисов задаются при реализации
+tags:
+- name: User
+- name: Rental
+- name: Inventory
+- name: Payment
+- name: Station Gateway
+paths:
+  /api/stations:
+    get:
+      tags:
+      - Inventory
+      operationId: listStations
+      summary: Список станций
+      description: Публичный запрос через API Gateway к Inventory Service. Список доступности может устаревать;
+        резерв проверяется строго.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Список станций
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationList'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /api/rentals:
+    post:
+      tags:
+      - Rental
+      operationId: createRental
+      summary: Начать процесс аренды
+      description: Rental создаёт аренду CREATED, проверяет пользователя, затем координирует резерв, депозит и
+        выдачу. Ответ 202 не означает, что пауэрбанк выдан. userId определяется по токену.
+      security:
+      - bearerAuth: []
+      parameters:
+      - &id002
+        name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+        description: Постоянный ключ одной логической операции. Тот же ключ и тот же запрос дают прежний результат;
+          другой запрос с тем же ключом — HTTP 409.
+        example: rental-123-authorize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RentalCreate'
+      responses:
+        '202':
+          description: Аренда принята в обработку
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /api/rentals/{rentalId}:
+    get:
+      tags:
+      - Rental
+      operationId: getRental
+      summary: Получить состояние аренды
+      description: Показывает текущее состояние Saga после любого отказа или перезапуска.
+      security:
+      - bearerAuth: []
+      parameters:
+      - &id001
+        name: rentalId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Идентификатор аренды
+      responses:
+        '200':
+          description: Аренда
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /api/rentals/{rentalId}/cancel:
+    post:
+      tags:
+      - Rental
+      operationId: cancelRental
+      summary: Запросить отмену
+      description: Отмена допускается только до достоверно подтверждённой выдачи; если результат выдачи неизвестен,
+        409 и необходима сверка. Успех 202 — запуск компенсации, НЕ итоговая отмена.
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id001
+      - *id002
+      responses:
+        '202':
+          description: Компенсация запрошена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rental'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/users/{userId}/eligibility:
+    get:
+      tags:
+      - User
+      operationId: checkEligibility
+      summary: Проверить возможность новой аренды
+      description: Внутренний вызов Rental -> User. Сам Rental проверяет отсутствие другой активной аренды у пользователя;
+        Payment Service отдельно знает, есть ли сохранённый токен платёжного метода.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Идентификатор пользователя
+      responses:
+        '200':
+          description: Результат проверки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Eligibility'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/inventory/reservations:
+    post:
+      tags:
+      - Inventory
+      operationId: reservePowerbank
+      summary: Атомарно зарезервировать устройство
+      description: Inventory выбирает свободный пауэрбанк и сохраняет связь rentalId -> powerbankId. Уникальное
+        активное резервирование не допускает двойной аренды. Повтор с тем же rentalId возвращает тот же резерв.
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveRequest'
+      responses:
+        '201':
+          description: Резерв создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/inventory/reservations/{reservationId}:
+    delete:
+      tags:
+      - Inventory
+      operationId: releaseReservation
+      summary: Освободить резерв
+      description: Только если достоверно подтверждено, что станция не выдала устройство, либо команда выдачи
+        ещё не направлялась. Повтор освобождения не изменяет данные повторно. При сомнительном исходе возвращается
+        409.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: reservationId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Идентификатор резерва
+      - *id002
+      responses:
+        '204':
+          description: Резерв освобождён; тела нет
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/payments/authorizations:
+    post:
+      tags:
+      - Payment
+      operationId: authorizeDeposit
+      summary: Заблокировать депозит
+      description: 'Сохранённый токен платёжного метода и провайдер управляются Payment Service. Результат может
+        быть PENDING: нельзя выдавать устройство, пока авторизация не подтверждена. Внешний провайдер в учебной
+        реализации — имитатор.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentAuthorizeRequest'
+      responses:
+        '201':
+          description: Депозит авторизован либо отказан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '202':
+          description: Результат у провайдера пока неизвестен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/payments/{paymentId}:
+    get:
+      tags:
+      - Payment
+      operationId: getPayment
+      summary: Проверить текущий результат денежной операции
+      description: Сверка по ранее созданному paymentId; при таймауте нельзя создавать новую логическую операцию.
+      security:
+      - bearerAuth: []
+      parameters:
+      - &id003
+        name: paymentId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Идентификатор депозита/платежа
+      responses:
+        '200':
+          description: Состояние платежа
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/payments/{paymentId}/capture:
+    post:
+      tags:
+      - Payment
+      operationId: capturePayment
+      summary: Списать фактическую стоимость аренды
+      description: После достоверного возврата Rental рассчитывает сумму. Одно логическое capture на paymentId/rentalId;
+        при сетевом таймауте сверяется прежний ID. При частичном списании остаток авторизации освобождается по
+        условиям учебного провайдера.
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id003
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '200':
+          description: Списание подтверждено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '202':
+          description: Списание ожидает подтверждения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/payments/{paymentId}/void:
+    post:
+      tags:
+      - Payment
+      operationId: voidAuthorization
+      summary: Снять блокировку депозита без списания
+      description: Используется в Saga-компенсации только после достоверно неуспешной выдачи. Повтор void безопасен.
+        Если результат выдачи неизвестен, Rental не должен вызывать void.
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id003
+      - *id002
+      responses:
+        '200':
+          description: Депозит разблокирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '202':
+          description: Разблокирование ожидает подтверждения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/payments/{paymentId}/refund:
+    post:
+      tags:
+      - Payment
+      operationId: refundPayment
+      summary: Вернуть ранее списанную сумму
+      description: 'Исправление после фактического списания. Не равно void: refund относится к CAPTURED, void
+        — к AUTHORIZED.'
+      security:
+      - bearerAuth: []
+      parameters:
+      - *id003
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+      responses:
+        '200':
+          description: Возврат подтверждён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '202':
+          description: Возврат ожидает подтверждения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/stations/{stationId}/unlock:
+    post:
+      tags:
+      - Station Gateway
+      operationId: sendUnlock
+      summary: Запросить выдачу пауэрбанка
+      description: HTTP 202 подтверждает приём КОМАНДЫ, но не факт физической выдачи. Факт публикуется событием
+        PowerbankReleased после достоверного подтверждения станции. Один commandId для всех повторов.
+      security:
+      - bearerAuth: []
+      parameters:
+      - &id004
+        name: stationId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Идентификатор физической станции
+      - *id002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnlockRequest'
+      responses:
+        '202':
+          description: Команда принята; выдача не подтверждена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationCommand'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /internal/stations/commands/{commandId}:
+    get:
+      tags:
+      - Station Gateway
+      operationId: getUnlockStatus
+      summary: Сверить исход команды выдачи
+      description: Если ответ потерян или станция offline, узнаём результат по прежнему commandId; при UNCERTAIN
+        не освобождаем резерв и депозит автоматически.
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: commandId
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Постоянный идентификатор команды станции
+      responses:
+        '200':
+          description: Состояние команды
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationCommand'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+  /hardware/stations/{stationId}/events:
+    post:
+      tags:
+      - Station Gateway
+      operationId: acceptStationEvent
+      summary: Получить подтверждение физической станции
+      description: Учебный контракт для имитатора станции. Gateway валидирует привязку команды, дедуплицирует
+        eventId и сохраняет факт с outbox. Клиентское приложение не может отправлять эти события.
+      security:
+      - stationApiKey: []
+      parameters:
+      - *id004
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HardwareEvent'
+      responses:
+        '202':
+          description: Факт сохранён для обработки
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    stationApiKey:
+      type: apiKey
+      in: header
+      name: X-Station-Key
+      description: Демо-секрет станции, только для учебного имитатора
+  schemas:
+    RentalCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        stationId:
+          type: string
+          description: Станция получения
+          example: station-01
+      required:
+      - stationId
+    Rental:
+      type: object
+      additionalProperties: false
+      properties:
+        rentalId:
+          type: string
+          description: Общий ID бизнес-процесса
+          example: rental-123
+        userId:
+          type: string
+          description: Берётся из проверенного токена, а не из тела создания аренды
+          example: user-42
+        stationId:
+          type: string
+          example: station-01
+        powerbankId:
+          type:
+          - string
+          - 'null'
+          description: Неизвестен до подтверждения резервирования
+        reservationId:
+          type:
+          - string
+          - 'null'
+        paymentId:
+          type:
+          - string
+          - 'null'
+        issueCommandId:
+          type:
+          - string
+          - 'null'
+        status:
+          type: string
+          description: Бизнес-состояние
+          enum:
+          - CREATED
+          - RESERVED
+          - ACTIVE
+          - COMPLETED
+          - CANCELLED
+        phase:
+          type: string
+          description: Технический этап Saga, может требовать сверки
+          enum:
+          - VALIDATING
+          - RESERVING
+          - AUTHORIZING
+          - ISSUING
+          - ISSUE_UNCERTAIN
+          - USING
+          - CHARGING
+          - PAYMENT_UNCERTAIN
+          - COMPENSATING
+          - DONE
+        depositAmountMinor:
+          type: integer
+          minimum: 0
+          description: Копейки RUB
+          example: 100000
+        hourlyRateMinor:
+          type: integer
+          minimum: 0
+          description: Копейки за начатый час
+          example: 10000
+        chargeAmountMinor:
+          type:
+          - integer
+          - 'null'
+          minimum: 0
+        startedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        returnedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - rentalId
+      - userId
+      - stationId
+      - powerbankId
+      - reservationId
+      - paymentId
+      - issueCommandId
+      - status
+      - phase
+      - depositAmountMinor
+      - hourlyRateMinor
+      - chargeAmountMinor
+      - startedAt
+      - returnedAt
+    StationList:
+      type: object
+      additionalProperties: false
+      properties:
+        stations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              stationId:
+                type: string
+              availableCount:
+                type: integer
+                minimum: 0
+              online:
+                type: boolean
+            required:
+            - stationId
+            - availableCount
+            - online
+      required:
+      - stations
+    Eligibility:
+      type: object
+      additionalProperties: false
+      properties:
+        userId:
+          type: string
+        allowed:
+          type: boolean
+        reason:
+          type: string
+          enum:
+          - OK
+          - BLOCKED
+      required:
+      - userId
+      - allowed
+      - reason
+    ReserveRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        rentalId:
+          type: string
+        stationId:
+          type: string
+      required:
+      - rentalId
+      - stationId
+    Reservation:
+      type: object
+      additionalProperties: false
+      properties:
+        reservationId:
+          type: string
+        rentalId:
+          type: string
+        stationId:
+          type: string
+        powerbankId:
+          type: string
+        status:
+          type: string
+          enum:
+          - RESERVED
+          - RENTED
+          - RELEASED
+      required:
+      - reservationId
+      - rentalId
+      - stationId
+      - powerbankId
+      - status
+    PaymentAuthorizeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        rentalId:
+          type: string
+        userId:
+          type: string
+        amountMinor:
+          type: integer
+          minimum: 1
+          description: Копейки, например 100000 = 1000 RUB
+          example: 100000
+        currency:
+          type: string
+          enum:
+          - RUB
+      required:
+      - rentalId
+      - userId
+      - amountMinor
+      - currency
+    Payment:
+      type: object
+      additionalProperties: false
+      properties:
+        paymentId:
+          type: string
+        rentalId:
+          type: string
+        authorizedAmountMinor:
+          type: integer
+          minimum: 0
+        capturedAmountMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          enum:
+          - RUB
+        status:
+          type: string
+          enum:
+          - PENDING
+          - AUTHORIZED
+          - DECLINED
+          - VOID_PENDING
+          - VOIDED
+          - CAPTURE_PENDING
+          - CAPTURED
+          - REFUNDED
+          - FAILED
+      required:
+      - paymentId
+      - rentalId
+      - authorizedAmountMinor
+      - capturedAmountMinor
+      - currency
+      - status
+    CaptureRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        rentalId:
+          type: string
+        amountMinor:
+          type: integer
+          minimum: 0
+          description: Не выше ранее авторизованной суммы
+          example: 20000
+      required:
+      - rentalId
+      - amountMinor
+    RefundRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amountMinor:
+          type: integer
+          minimum: 1
+          description: Не больше суммы фактического списания
+          example: 20000
+        reason:
+          type: string
+          example: manual-correction
+      required:
+      - amountMinor
+      - reason
+    UnlockRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        commandId:
+          type: string
+          description: 'Стабильный ID: повтор запроса не должен выдать второй пауэрбанк'
+          example: unlock-rental-123
+        rentalId:
+          type: string
+        powerbankId:
+          type: string
+      required:
+      - commandId
+      - rentalId
+      - powerbankId
+    StationCommand:
+      type: object
+      additionalProperties: false
+      properties:
+        commandId:
+          type: string
+        rentalId:
+          type: string
+        stationId:
+          type: string
+        powerbankId:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACCEPTED
+          - SENT
+          - RELEASED
+          - FAILED
+          - UNCERTAIN
+        reason:
+          type:
+          - string
+          - 'null'
+      required:
+      - commandId
+      - rentalId
+      - stationId
+      - powerbankId
+      - status
+      - reason
+    HardwareEvent:
+      type: object
+      additionalProperties: false
+      properties:
+        eventId:
+          type: string
+          description: Стабильный ID факта станции для дедупликации
+        rentalId:
+          type: string
+        powerbankId:
+          type: string
+        kind:
+          type: string
+          enum:
+          - RELEASED
+          - RELEASE_FAILED
+          - RETURNED
+        commandId:
+          type:
+          - string
+          - 'null'
+          description: Обязателен по бизнес-правилу для RELEASED и RELEASE_FAILED
+        occurredAt:
+          type: string
+          format: date-time
+          description: Момент факта по данным станции; Gateway валидирует и фиксирует получение
+      required:
+      - eventId
+      - rentalId
+      - powerbankId
+      - kind
+      - commandId
+      - occurredAt
+    Problem:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          example: INVENTORY_CONFLICT
+        message:
+          type: string
+          example: Устройство уже зарезервировано
+        requestId:
+          type: string
+          example: req-aaa
+      required:
+      - code
+      - message
+  responses:
+    Error400:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error401:
+      description: Нет аутентификации
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error403:
+      description: Нет прав
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error404:
+      description: Не найдено
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error409:
+      description: Конфликт состояния/идемпотентности
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error422:
+      description: Нарушено бизнес-правило
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Error503:
+      description: Сервис временно недоступен
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
