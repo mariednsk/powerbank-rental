@@ -200,35 +200,49 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor U as Пользователь
+    participant C as Client/API Gateway
     participant R as Rental Service
+    participant I as Inventory Service
+    participant P as Payment Service
     participant G as Station Gateway
     participant S as Физическая станция
-    participant P as Payment Service
-    participant I as Inventory Service
     participant K as Kafka
 
-    R->>P: authorize(paymentOperationId)
-    P-->>R: Authorized
+    U->>C: POST /rentals
+    C->>R: createRental(userId, stationId, key)
+    R->>R: Создать PENDING
+
+    R->>I: reserve(stationId, rentalId)
+    I-->>R: Reserved(reservationId, powerbankId)
+    R->>R: Сохранить RESERVED
+
+    R->>P: authorize(rentalId, amount, paymentOperationId)
+    P-->>R: Authorized(providerPaymentId)
+    R->>R: Сохранить AUTHORIZED
+
     R->>G: dispense(commandId, powerbankId)
-    G->>S: Выдать по commandId
-    Note over G,S: Ответ потерян; реальный исход пока неизвестен
-    G--xR: Timeout / UNKNOWN
-    R->>R: RECONCILING (ничего не освобождать)
-    R-->>U: Проверяем результат выдачи
-    loop Повторная сверка с тем же commandId
-        R->>G: getDispenseResult(commandId)
-        G->>S: Проверить журнал команды и состояние ячейки
-        S-->>G: NOT_DISPENSED (подтверждено)
-        G-->>R: NOT_DISPENSED
-    end
-    R->>R: CANCELLING
+    G->>S: Команда выдачи устройства
+    Note over G,S: Соединение потеряно, результат неизвестен
+    G-->>R: Timeout
+    R->>R: Сохранить DISPENSE_UNKNOWN
+
+    Note over R,G: Проверка фактического состояния
+    R->>G: getDispenseStatus(commandId)
+    G->>S: Проверить результат выдачи
+    S-->>G: NOT_DISPENSED
+    G-->>R: NOT_DISPENSED
+
+    Note over R,P: Устройство не выдано, запускаем компенсацию
     R->>P: voidAuthorization(paymentOperationId)
     P-->>R: AuthorizationVoided
-    R->>I: release(reservationId)
-    I-->>R: Released
-    R->>R: CANCELLED
-    R-->>U: Устройство не выдано, удержание отменено
-    R-->>K: RentalCancelled (через Outbox)
+
+    R->>I: releaseReservation(reservationId)
+    I-->>R: ReservationReleased
+
+    R->>R: Сохранить CANCELLED
+    R-->>K: RentalCancelled через Outbox
+    R-->>C: status=CANCELLED
+    C-->>U: Аренда отменена, блокировка средств снята
 ```
 
 **Компенсация:** сначала `Payment.voidAuthorization`, затем `Inventory.release`. Если один шаг недоступен, сохраняем `COMPENSATION_PENDING` и повторяем до подтверждения. Если сверка покажет `DISPENSED`, Rental переключает аренду в `ACTIVE` и **не отменяет депозит**. Если станция остаётся недоступной, результат остаётся `RECONCILING`: нельзя обещать отмену или освобождать резерв по одному таймауту. Случаи физической потери/спорного состояния устройства требуют ручного разбора.
