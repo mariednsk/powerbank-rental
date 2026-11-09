@@ -1,4 +1,3 @@
-# AsyncAPI 3.0.0 — сводные события вашей системы, брокер Kafka.
 asyncapi: 3.0.0
 id: urn:powerbank-rental:integration-contracts:v1
 info:
