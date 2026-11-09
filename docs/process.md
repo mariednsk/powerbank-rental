@@ -96,7 +96,7 @@ sequenceDiagram
     R->>R: Создать PENDING и шаг Saga
 
     R->>I: reserve(stationId, rentalId)
-    I->>I: Атомарно закрепить powerbankId
+    I->>I: Атомарно выбрать и закрепить powerbankId
     I-->>R: Reserved(reservationId, powerbankId)
     R->>R: Сохранить RESERVED
 
@@ -107,28 +107,16 @@ sequenceDiagram
     R->>G: dispense(commandId, powerbankId)
     G->>S: Выдать устройство по commandId
     S-->>G: Dispensed(commandId, powerbankId)
+    G-->>R: Dispensed(commandId, powerbankId)
 
-    Note over G,R: Ответ потерян, результат выдачи неизвестен
-    G-->>R: Timeout
-    R->>R: Сохранить DISPENSE_UNKNOWN
+    R->>I: confirmDispensed(reservationId)
+    I-->>R: Powerbank marked RENTED
 
-    Note over R,G: Проверка фактического состояния
-    R->>G: getDispenseStatus(commandId)
-    G->>S: Проверить состояние выдачи
-    S-->>G: NOT_DISPENSED
-    G-->>R: NOT_DISPENSED
+    R->>R: Сохранить ACTIVE и событие в Outbox
+    R-->>C: rentalId, status=ACTIVE
+    C-->>U: Аренда успешно началась
 
-    Note over R,P: Запуск компенсации
-    R->>P: voidAuthorization(paymentOperationId)
-    P-->>R: AuthorizationVoided
-
-    R->>I: releaseReservation(reservationId)
-    I-->>R: ReservationReleased
-
-    R->>R: Сохранить CANCELLED
-    R-->>K: RentalCancelled (через Outbox)
-    R-->>C: rentalId, status=CANCELLED
-    C-->>U: Аренда отменена, блокировка средств снята
+    R-->>K: RentalStarted через Outbox
 ```
 
 Депозит авторизован, но не списан окончательно. После возврата устройства отдельный процесс рассчитает стоимость и произведёт списание/освобождение остатка — не часть этой Saga.
