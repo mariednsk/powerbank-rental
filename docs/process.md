@@ -84,6 +84,7 @@ Rental Service сохраняет текущий шаг и статус в св�
 
 ## 4. Sequence-диаграмма № 1 — успешный запуск аренды
 
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -99,21 +100,41 @@ sequenceDiagram
     U->>C: POST /rentals (Idempotency-Key)
     C->>R: createRental(userId, stationId, key)
     R->>R: Создать PENDING и шаг Saga
+
     R->>I: reserve(stationId, rentalId)
-    I->>I: Атомарно выбрать и закрепить powerbankId
+    I->>I: Атомарно закрепить powerbankId
     I-->>R: Reserved(reservationId, powerbankId)
     R->>R: Сохранить RESERVED
+
     R->>P: authorize(rentalId, amount, paymentOperationId)
     P-->>R: Authorized(providerPaymentId)
     R->>R: Сохранить AUTHORIZED
+
     R->>G: dispense(commandId, powerbankId)
-    G->>S: Выдать по commandId
+    G->>S: Выдать устройство по commandId
     S-->>G: Dispensed(commandId, powerbankId)
-    G-->>R: Timeout / UNKNOWN
-    R->>R: Сохранить ACTIVE и событие в Outbox
-    R-->>C: rentalId, status=ACTIVE
-    C-->>U: Аренда началась
-    R-->>K: RentalStarted (через Outbox)
+
+    Note over G,R: Ответ потерян, результат выдачи неизвестен
+    G-->>R: Timeout
+    R->>R: Сохранить DISPENSE_UNKNOWN
+
+    Note over R,G: Проверка фактического состояния
+    R->>G: getDispenseStatus(commandId)
+    G->>S: Проверить состояние выдачи
+    S-->>G: NOT_DISPENSED
+    G-->>R: NOT_DISPENSED
+
+    Note over R,P: Запуск компенсации
+    R->>P: voidAuthorization(paymentOperationId)
+    P-->>R: AuthorizationVoided
+
+    R->>I: releaseReservation(reservationId)
+    I-->>R: ReservationReleased
+
+    R->>R: Сохранить CANCELLED
+    R-->>K: RentalCancelled (через Outbox)
+    R-->>C: rentalId, status=CANCELLED
+    C-->>U: Аренда отменена, блокировка средств снята
 ```
 
 Депозит авторизован, но не списан окончательно. После возврата устройства отдельный процесс рассчитает стоимость и произведёт списание/освобождение остатка — не часть этой Saga.
