@@ -1,4 +1,3 @@
-# OpenAPI 3.1.1 — первая часть курса: проектирование, не сервер.
 openapi: 3.1.1
 info:
   title: Powerbank Rental — REST contracts
