@@ -109,7 +109,7 @@ sequenceDiagram
     R->>G: dispense(commandId, powerbankId)
     G->>S: Выдать по commandId
     S-->>G: Dispensed(commandId, powerbankId)
-    G-->>R: Dispensed подтверждено
+    G-->>R: Timeout / UNKNOWN
     R->>R: Сохранить ACTIVE и событие в Outbox
     R-->>C: rentalId, status=ACTIVE
     C-->>U: Аренда началась
