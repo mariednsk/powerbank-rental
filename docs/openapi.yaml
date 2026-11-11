@@ -950,6 +950,12 @@ components:
           description: Стабильный ID факта станции для дедупликации
         rentalId:
           type: string
+        serviceable:
+          type: boolean
+          description: Исправность устройства при возврате
+        reason:
+          type: string
+          description: Причина достоверно подтверждённой невыдачи
         powerbankId:
           type: string
         kind:
